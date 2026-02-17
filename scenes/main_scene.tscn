@@ -1,7 +1,8 @@
-[gd_scene load_steps=5 format=3 uid="uid://c3671n50h5612"]
+[gd_scene format=3 uid="uid://c3671n50h5612"]
 
-[ext_resource type="Script" path="res://scripts/main_scene.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://cxng37kc2bk17" path="res://scripts/main_scene.gd" id="1_main"]
 [ext_resource type="Material" path="res://shaders/grid_material.tres" id="2_grid_mat"]
+[ext_resource type="PackedScene" uid="uid://0d4xn7ll3y1e" path="res://scenes/enemies/test_enemy.tscn" id="3_enemy"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
 size = Vector2(20, 20)
@@ -9,16 +10,18 @@ size = Vector2(20, 20)
 [sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
 size = Vector3(20, 0.1, 20)
 
-[node name="MainScene" type="Node3D"]
+[node name="MainScene" type="Node3D" unique_id=499306419]
 script = ExtResource("1_main")
 
-[node name="Ground" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+[node name="Ground" type="MeshInstance3D" parent="." unique_id=49817307]
 mesh = SubResource("PlaneMesh_ground")
 surface_material_override/0 = ExtResource("2_grid_mat")
 
-[node name="GroundCollision" type="StaticBody3D" parent="."]
+[node name="GroundCollision" type="StaticBody3D" parent="." unique_id=1598887392]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="GroundCollision"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="GroundCollision" unique_id=1185747832]
 shape = SubResource("BoxShape3D_ground")
+
+[node name="TestEnemy" parent="." unique_id=1302877534 instance=ExtResource("3_enemy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 5)

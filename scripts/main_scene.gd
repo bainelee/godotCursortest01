@@ -14,3 +14,4 @@ func _ready() -> void:
 	var crosshair_scene = load("res://scenes/ui/crosshair.tscn") as PackedScene
 	if crosshair_scene:
 		add_child(crosshair_scene.instantiate())
+	
