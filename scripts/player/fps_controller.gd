@@ -82,38 +82,52 @@ const RAY_MAX_LENGTH := 5000.0
 func _shoot() -> void:
 	if not _camera:
 		return
-	# 从屏幕中心（准星）发射射线，最远 5000
 	var viewport := _camera.get_viewport()
 	var center := viewport.get_visible_rect().get_center()
 	var origin := _camera.project_ray_origin(center)
 	var direction := _camera.project_ray_normal(center).normalized()
 	var ray_end := origin + direction * RAY_MAX_LENGTH
 	
-	# 射线检测受击碰撞体（Area、Body）
+	# 物理射线：用于检测地面等非敌人碰撞体
 	var space_state := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(origin, ray_end)
 	query.collide_with_areas = true
 	query.collide_with_bodies = true
-	query.collision_mask = 0xFFFF  # 检测所有物理层
+	query.collision_mask = 0xFFFF
 	query.exclude = [self.get_rid()]
-	
 	var result := space_state.intersect_ray(query)
-	var hit_position: Vector3
-	var hit_collider: Node = null
-	
+	var phys_dist := INF
+	var phys_hit := ray_end
 	if result:
-		hit_position = result.position
-		hit_collider = result.collider
-		if hit_collider is CharacterBody3D and hit_collider.is_in_group("player"):
-			hit_collider = null
+		phys_dist = origin.distance_to(result.position)
+		phys_hit = result.position
+		if result.collider is CharacterBody3D and result.collider.is_in_group("player"):
+			phys_dist = INF
+			phys_hit = ray_end
+	
+	# 遍历敌人：射线与精灵平面相交，仅按纹理不透明区域判定受击（无 3D 碰撞）
+	var best_enemy: Node = null
+	var best_dist := INF
+	var best_pos := ray_end
+	for enemy in get_tree().get_nodes_in_group("enemy"):
+		if not enemy.has_method("ray_intersect_sprite"):
+			continue
+		var res: Dictionary = enemy.ray_intersect_sprite(origin, direction)
+		if res["hit"] and res["distance"] < best_dist and res["distance"] < phys_dist:
+			best_dist = res["distance"]
+			best_enemy = enemy
+			best_pos = res["position"]
+	
+	var hit_position: Vector3
+	if best_enemy:
+		hit_position = best_pos
+		if best_enemy._on_bullet_hit(hit_position):
+			_hit_shake_trauma = minf(1.0, _hit_shake_trauma + 0.4)
+	elif phys_dist < INF:
+		hit_position = phys_hit
 	else:
 		hit_position = ray_end
 	
-	# 通知击中目标（命中位置为准星射线与受击体的交点）
-	if hit_collider:
-		_notify_hit(hit_collider, hit_position)
-	
-	# 生成子弹飞向命中点（纯视觉）
 	var spawn_pos := _bullet_spawn.global_position if _bullet_spawn else origin
 	var bullet := BULLET_SCENE.instantiate() as Area3D
 	get_parent().add_child(bullet)
@@ -137,13 +151,3 @@ func _process(delta: float) -> void:
 	elif _camera:
 		_camera.position = CAMERA_BASE_OFFSET
 		_camera.rotation = Vector3(_pitch, 0, 0)
-
-
-func _notify_hit(collider: Node, hit_position: Vector3) -> void:
-	var node: Node = collider
-	while node:
-		if node.is_in_group("enemy") and node.has_method("_on_bullet_hit"):
-			if node._on_bullet_hit(hit_position):
-				_hit_shake_trauma = minf(1.0, _hit_shake_trauma + 0.4)
-			break
-		node = node.get_parent()
