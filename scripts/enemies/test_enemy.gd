@@ -2,14 +2,21 @@ extends Node3D
 
 ## 可复用的测试敌人：使用 Sprite3D 纸片风格，显示 triangle_inverted_red.png
 ## 始终面向玩家，被子弹击中时显示红圈特效（支持多受击点，各自 2 秒后消失）
+## 受击范围由纹理透明通道控制：仅在不透明区域（alpha > 阈值）受击
 
 const MAX_HITS := 16
 const HIT_FADE_SEC := 2.0
+
+## 启用时：仅在纹理不透明区域（alpha > 阈值）受击
+@export var use_texture_alpha_for_hit: bool = true
+## 纹理 alpha 低于此值视为透明，不触发受击（抗锯齿边缘可适当调高，如 0.3）
+@export var hit_alpha_threshold: float = 0.2
 
 var _player: Node3D
 var _sprite: Sprite3D
 var _hit_material: ShaderMaterial
 var _hits: Array[Dictionary] = []  # [{uv: Vector2, time: float}, ...]
+var _texture_image: Image = null  # 缓存纹理的 Image，用于 alpha 采样
 
 
 func _ready() -> void:
@@ -24,9 +31,29 @@ func _ready() -> void:
 		call_deferred("_find_player")
 
 
+func _is_opaque_at_uv(uv: Vector2) -> bool:
+	if not use_texture_alpha_for_hit or not _texture_image:
+		return true
+	var w := _texture_image.get_width()
+	var h := _texture_image.get_height()
+	if w <= 0 or h <= 0:
+		return true
+	var px := clampi(int(uv.x * w), 0, w - 1)
+	var py := clampi(int(uv.y * h), 0, h - 1)
+	return _texture_image.get_pixel(px, py).a >= hit_alpha_threshold
+
+
 func _setup_hit_material() -> void:
 	if not _sprite:
 		return
+	if use_texture_alpha_for_hit and _sprite.texture:
+		_texture_image = _sprite.texture.get_image()
+		if _texture_image:
+			if _texture_image.is_compressed():
+				_texture_image.decompress()
+		elif _sprite.texture.resource_path:
+			# 压缩纹理可能无法 get_image，尝试从源文件加载
+			_texture_image = Image.load_from_file(_sprite.texture.resource_path)
 	var base_mat = load("res://shaders/sprite3d_hit_material.tres") as ShaderMaterial
 	if base_mat:
 		_hit_material = base_mat.duplicate() as ShaderMaterial
@@ -56,6 +83,9 @@ func _apply_hit_effect(hit_position: Vector3) -> void:
 	var h = tex.get_height() * _sprite.pixel_size if tex else 1.0
 	var uv = Vector2(local.x / w + 0.5, 0.5 - local.y / h)
 	uv = uv.clamp(Vector2.ZERO, Vector2.ONE)
+	# 纹理透明通道：仅在非透明像素处受击
+	if not _is_opaque_at_uv(uv):
+		return
 	var now := Time.get_ticks_msec() / 1000.0
 	# 移除已超过 2 秒的旧受击点
 	_hits = _hits.filter(func(h): return now - h.time < HIT_FADE_SEC)
