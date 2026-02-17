@@ -1,3 +1,24 @@
-[gd_scene format=3 uid="uid://c3671n50h5612"]
+[gd_scene load_steps=5 format=3 uid="uid://c3671n50h5612"]
 
-[node name="MainScene" type="Node3D" unique_id=1445990175]
+[ext_resource type="Script" path="res://scripts/main_scene.gd" id="1_main"]
+[ext_resource type="Material" path="res://shaders/grid_material.tres" id="2_grid_mat"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+size = Vector2(20, 20)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
+size = Vector3(20, 0.1, 20)
+
+[node name="MainScene" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="Ground" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+mesh = SubResource("PlaneMesh_ground")
+surface_material_override/0 = ExtResource("2_grid_mat")
+
+[node name="GroundCollision" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="GroundCollision"]
+shape = SubResource("BoxShape3D_ground")
