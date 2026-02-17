@@ -69,14 +69,14 @@ func _setup_hit_material() -> void:
 		_sprite.material_override = _hit_material
 
 
-func _on_bullet_hit(hit_position: Vector3) -> void:
-	# 由子弹射线检测击中时调用
+func _on_bullet_hit(hit_position: Vector3) -> bool:
+	# 由子弹射线检测击中时调用，返回是否计入有效受击（用于镜头抖动等反馈）
 	if not _hit_material or not _sprite:
-		return
-	_apply_hit_effect(hit_position)
+		return false
+	return _apply_hit_effect(hit_position)
 
 
-func _apply_hit_effect(hit_position: Vector3) -> void:
+func _apply_hit_effect(hit_position: Vector3) -> bool:
 	var local = _sprite.to_local(hit_position)
 	var tex = _sprite.texture
 	var w = tex.get_width() * _sprite.pixel_size if tex else 1.0
@@ -85,7 +85,7 @@ func _apply_hit_effect(hit_position: Vector3) -> void:
 	uv = uv.clamp(Vector2.ZERO, Vector2.ONE)
 	# 纹理透明通道：仅在非透明像素处受击
 	if not _is_opaque_at_uv(uv):
-		return
+		return false
 	var now := Time.get_ticks_msec() / 1000.0
 	# 移除已超过 2 秒的旧受击点
 	_hits = _hits.filter(func(h): return now - h.time < HIT_FADE_SEC)
@@ -93,6 +93,7 @@ func _apply_hit_effect(hit_position: Vector3) -> void:
 		_hits.pop_front()  # 满时移除最旧的
 	_hits.append({"uv": uv, "time": now})
 	_sync_hits_to_shader()
+	return true
 
 
 func _sync_hits_to_shader() -> void:

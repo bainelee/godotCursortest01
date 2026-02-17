@@ -8,10 +8,18 @@ extends CharacterBody3D
 @export var jump_velocity: float = 4.5
 @export var mouse_sensitivity: float = 0.002
 @export var gravity_multiplier: float = 1.0
+## 命中敌人时镜头抖动强度（位移）
+@export var hit_shake_strength: float = 0.15
+## 命中敌人时镜头翻滚强度（弧度）
+@export var hit_shake_roll_strength: float = 0.04
+## 镜头抖动衰减速度
+@export var hit_shake_decay: float = 3.0
 
 var _camera: Camera3D
 var _bullet_spawn: Node3D  # 子弹发射点（可编辑器中调整 BulletSpawnPoint）
 var _pitch: float = 0.0  # 上下视角（俯仰角）
+var _hit_shake_trauma: float = 0.0  # 0~1，命中时叠加
+const CAMERA_BASE_OFFSET := Vector3(0.0, 1.6, 0.0)
 
 const BULLET_SCENE := preload("res://scenes/projectiles/bullet.tscn")
 
@@ -31,8 +39,6 @@ func _input(event: InputEvent) -> void:
 		# 上下旋转相机（限制俯仰角）
 		_pitch -= event.relative.y * mouse_sensitivity
 		_pitch = clampf(_pitch, -deg_to_rad(89), deg_to_rad(89))
-		if _camera:
-			_camera.rotation.x = _pitch
 	
 	if event.is_action_pressed("ui_cancel"):  # ESC 切换鼠标
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
@@ -88,6 +94,7 @@ func _shoot() -> void:
 	var query := PhysicsRayQueryParameters3D.create(origin, ray_end)
 	query.collide_with_areas = true
 	query.collide_with_bodies = true
+	query.collision_mask = 0xFFFF  # 检测所有物理层
 	query.exclude = [self.get_rid()]
 	
 	var result := space_state.intersect_ray(query)
@@ -114,10 +121,29 @@ func _shoot() -> void:
 		bullet.setup(direction, spawn_pos, hit_position)
 
 
+func _process(delta: float) -> void:
+	# 命中镜头抖动（位移 + 轻微翻滚）
+	if _camera and _hit_shake_trauma > 0.0:
+		_hit_shake_trauma = move_toward(_hit_shake_trauma, 0.0, hit_shake_decay * delta)
+		var shake := _hit_shake_trauma * _hit_shake_trauma  # 平方衰减更自然
+		var offset := Vector3(
+			randf_range(-1, 1) * hit_shake_strength * shake,
+			randf_range(-1, 1) * hit_shake_strength * shake * 0.5,
+			randf_range(-1, 1) * hit_shake_strength * shake
+		)
+		var roll := randf_range(-1, 1) * hit_shake_roll_strength * shake
+		_camera.position = CAMERA_BASE_OFFSET + offset
+		_camera.rotation = Vector3(_pitch, 0, roll)
+	elif _camera:
+		_camera.position = CAMERA_BASE_OFFSET
+		_camera.rotation = Vector3(_pitch, 0, 0)
+
+
 func _notify_hit(collider: Node, hit_position: Vector3) -> void:
 	var node: Node = collider
 	while node:
 		if node.is_in_group("enemy") and node.has_method("_on_bullet_hit"):
-			node._on_bullet_hit(hit_position)
+			if node._on_bullet_hit(hit_position):
+				_hit_shake_trauma = minf(1.0, _hit_shake_trauma + 0.4)
 			break
 		node = node.get_parent()
